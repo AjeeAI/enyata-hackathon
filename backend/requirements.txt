@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy>=2.0.35
+psycopg[binary]
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+python-dotenv
+langchain>=0.2.0
+langchain-openai
+langchain-groq
+langgraph
+qdrant-client
+pypdf
