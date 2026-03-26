@@ -13,25 +13,16 @@ export default function Dashboard() {
   });
 
   // Fetch data from the database
-  const fetchDashboardData = async () => {
+ const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Replace with your actual backend GET endpoint
-      // const response = await fetch('https://demo-api.com/api/dashboard/overview');
-      // const data = await response.json();
+      const schoolId = localStorage.getItem('school_id'); // Get from login state
+      const response = await fetch(`http://127.0.0.1:8000/api/admin/dashboard/overview/${schoolId}`);
       
-      // Mocking the backend JSON response for demonstration
-      const mockBackendData = {
-        totalCollected: 4500000,
-        outstandingDebt: 1200000,
-        activePaymentPlans: 42,
-        recentTransactions: [
-          { id: 1, studentName: 'Amaka Johnson', class: 'JSS 2', amount: 5000, status: 'Verified', time: '2 mins ago' },
-          { id: 2, studentName: 'Obi Michael', class: 'SSS 1', amount: 15000, status: 'Verified', time: '1 hr ago' }
-        ]
-      };
+      if (!response.ok) throw new Error("Failed to fetch");
       
-      setDashboardData(mockBackendData);
+      const data = await response.json();
+      setDashboardData(data);
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
     } finally {

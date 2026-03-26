@@ -10,20 +10,37 @@ export default function Login() {
 
   const handleChange = (e) => setCredentials({ ...credentials, [e.target.name]: e.target.value });
 
-  const handleLogin = async (e) => {
+ const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Demo API Endpoint
-      await fetch('https://demo-api.com/api/auth/login', {
+      // 1. Point to your local FastAPI backend
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       });
-      console.log('Login payload:', credentials);
-      navigate('/admin');
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // 2. Store the JWT token securely in the browser
+        localStorage.setItem('token', data.access_token);
+        
+        // Optional: store school_id if you need it for filtering dashboard stats
+        if (data.school_id) {
+          localStorage.setItem('school_id', data.school_id);
+        }
+
+        console.log('Login successful');
+        navigate('/admin');
+      } else {
+        // 3. Handle specific error messages from your backend
+        alert(data.detail || "Invalid email or password.");
+      }
     } catch (error) {
-      console.error('Login failed', error);
+      console.error('Login failed:', error);
+      alert("Could not connect to the server. Is the backend running?");
     } finally {
       setIsLoading(false);
     }

@@ -31,7 +31,17 @@ async def chat_with_parent(request: ChatRequest):
         final_state = await eduintellect_agent.ainvoke(initial_state)
         
         # Extract the last message from the agent
-        final_reply = final_state["messages"][-1].content
+        raw_content = final_state["messages"][-1].content
+        
+        # --- THE FIX: Convert Gemini's list format to a plain string ---
+        if isinstance(raw_content, list):
+            final_reply = " ".join([
+                part.get("text", "") if isinstance(part, dict) else str(part) 
+                for part in raw_content
+            ])
+        else:
+            final_reply = str(raw_content)
+        # ---------------------------------------------------------------
         
         # Simple regex to extract payment link if the payment agent generated one
         url_match = re.search(r'(https?://[^\s]+)', final_reply)

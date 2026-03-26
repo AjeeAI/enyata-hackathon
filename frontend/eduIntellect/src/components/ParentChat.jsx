@@ -36,7 +36,7 @@ export default function ParentChat() {
   };
   useEffect(scrollToBottom, [messages, isTyping]);
 
-  const handleSend = async (e) => {
+const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
 
@@ -45,27 +45,47 @@ export default function ParentChat() {
     setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      let aiResponse;
-      if (newUserMsg.text.toLowerCase().includes('pay') || newUserMsg.text.toLowerCase().includes('balance')) {
-        aiResponse = {
-          id: Date.now() + 1,
+    try {
+      // 1. Call your real FastAPI Backend
+      const response = await fetch('http://127.0.0.1:8000/api/chat/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Use a test phone number so the AI can look up Aisha in the DB!
+        body: JSON.stringify({ phone_number: "+2348011111111", message: newUserMsg.text })
+      });
+      
+      const data = await response.json();
+
+      // 2. Format the AI's text response
+      let aiResponse = {
+        id: Date.now() + 1,
+        sender: 'bot',
+        type: 'text',
+        text: data.reply
+      };
+      
+      setMessages((prev) => [...prev, aiResponse]);
+
+      // 3. If the AI generated an Interswitch link, render the Payment Widget!
+      if (data.payment_link) {
+        // Extract the amount from the reply (if possible) or default to 50000 for the demo
+        const amountMatch = data.reply.match(/₦([\d,]+)/);
+        const amount = amountMatch ? parseInt(amountMatch[1].replace(/,/g, '')) : 50000;
+        
+        const paymentWidget = {
+          id: Date.now() + 2,
           sender: 'bot',
           type: 'payment_card',
-          text: "I found an outstanding balance for the current term. You can clear this securely right now.",
-          payload: { amount: 15000, feeType: 'Tuition - Term 2' }
+          payload: { amount: amount, feeType: 'Outstanding Balance' }
         };
-      } else {
-        aiResponse = {
-          id: Date.now() + 1,
-          sender: 'bot',
-          type: 'text',
-          text: "I can help with fee inquiries, payment plans, or generating an invoice. Would you like to check your balance?"
-        };
+        setMessages((prev) => [...prev, paymentWidget]);
       }
-      setMessages((prev) => [...prev, aiResponse]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setMessages((prev) => [...prev, { id: Date.now()+1, sender: 'bot', type: 'text', text: "Sorry, the AI server is offline." }]);
+    } finally {
       setIsTyping(false);
-    }, 1500); 
+    }
   };
 
   // 2. The Interswitch Inline Checkout Function

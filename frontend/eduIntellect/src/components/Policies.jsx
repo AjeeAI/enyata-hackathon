@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   UploadCloud, 
   FileText, 
@@ -13,38 +13,44 @@ import {
 export default function Policies() {
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [documents, setDocuments] = useState([]); 
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef(null);
 
-  // Mock data representing RAG documents with embedding statuses
-  const [documents, setDocuments] = useState([
-    { 
-      id: 'DOC-001', 
-      name: '2026_Approved_Fee_Schedule.pdf', 
-      size: '2.4 MB', 
-      date: 'Mar 24, 2026', 
-      status: 'indexed' 
-    },
-    { 
-      id: 'DOC-002', 
-      name: 'Student_Code_of_Conduct.docx', 
-      size: '1.1 MB', 
-      date: 'Mar 20, 2026', 
-      status: 'indexed' 
-    },
-    { 
-      id: 'DOC-003', 
-      name: 'Draft_Parent_Communication_Policy.pdf', 
-      size: '850 KB', 
-      date: 'Mar 25, 2026', 
-      status: 'processing' 
-    },
-  ]);
+  // --- Fetch Documents on Mount ---
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      setIsLoading(true);
+      try {
+        const schoolId = localStorage.getItem('school_id');
+        
+        // FIX 1: Guard clause to prevent fetching with a null ID
+        if (!schoolId || schoolId === 'null') {
+          console.warn("No valid school_id found in localStorage. Skipping fetch.");
+          setIsLoading(false);
+          return;
+        }
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    // In a full implementation, you'd toggle a state here to highlight the dropzone
-  };
+        const response = await fetch(`http://127.0.0.1:8000/api/admin/policies/${schoolId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (!response.ok) throw new Error("Failed to fetch documents");
+        const data = await response.json();
+        
+        // Ensure we always set an array
+        setDocuments(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDocuments();
+  }, []);
 
+  const handleDragOver = (e) => { e.preventDefault(); };
+  
   const handleDrop = (e) => {
     e.preventDefault();
     const files = e.dataTransfer.files;
@@ -56,27 +62,25 @@ export default function Policies() {
     if (file) processFile(file);
   };
 
-  const processFile = async (file) => {
+  const processFile = async (document) => {
     setIsUploading(true);
     const formData = new FormData();
-    formData.append('document', file);
+    formData.append('file', document); 
+    const schoolId = localStorage.getItem('school_id');
+
+    formData.append('school_id', schoolId);
 
     try {
-      // Demo API Endpoint for RAG document ingestion
-      await fetch('https://demo-api.com/api/rag/upload', {
+      const response = await fetch('http://127.0.0.1:8000/api/admin/upload-policy', {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: formData,
       });
       
-      // Optimistically add to UI as 'processing'
-      const newDoc = {
-        id: `DOC-00${documents.length + 1}`,
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: 'processing'
-      };
-      setDocuments([newDoc, ...documents]);
+      if (!response.ok) throw new Error("Upload failed");
+      
+      const newDoc = await response.json(); 
+      setDocuments(prevDocs => [newDoc, ...prevDocs]);
       
     } catch (error) {
       console.error('Upload failed', error);
@@ -87,16 +91,22 @@ export default function Policies() {
     }
   };
 
-  const deleteDocument = (id) => {
-    // In reality, this would hit a DELETE endpoint to remove the vectors from your DB
-    setDocuments(documents.filter(doc => doc.id !== id));
+  const deleteDocument = async (id) => {
+      setDocuments(documents.filter(doc => doc.id !== id));
+      try {
+          // Implement backend delete later
+          // await fetch(`http://127.0.0.1:8000/api/admin/policies/${id}`, { method: 'DELETE' });
+      } catch (error){
+          console.error("Failed to delete doc", error)
+      }
   };
 
-  const filteredDocs = documents.filter(doc => 
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // FIX 2: Added optional chaining (?.) and fallback to prevent crashes if doc.name is missing
+  const filteredDocs = documents.filter(doc => {
+    const docName = doc?.name || ''; 
+    return docName.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
-  // Helper for status styling
   const getStatusDisplay = (status) => {
     switch(status) {
       case 'indexed':
@@ -193,7 +203,11 @@ export default function Policies() {
 
           {/* Document Items */}
           <div className="flex-1 overflow-y-auto p-2">
-            {filteredDocs.length === 0 ? (
+              {isLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center">
+                      <p>Loading documents...</p>
+                  </div>
+              ) : filteredDocs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center">
                 <FileText className="w-12 h-12 mb-3 opacity-20" />
                 <p>No documents found matching your search.</p>
@@ -201,18 +215,18 @@ export default function Policies() {
             ) : (
               <ul className="space-y-2">
                 {filteredDocs.map((doc) => (
-                  <li key={doc.id} className="group p-4 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all flex items-center justify-between gap-4">
+                  <li key={doc.id || Math.random()} className="group p-4 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all flex items-center justify-between gap-4">
                     
                     <div className="flex items-start gap-4 overflow-hidden">
                       <div className="p-2.5 bg-slate-100 text-slate-500 rounded-lg shrink-0">
                         <File className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-medium text-slate-800 text-sm truncate">{doc.name}</h4>
+                        <h4 className="font-medium text-slate-800 text-sm truncate">{doc.name || 'Unnamed Document'}</h4>
                         <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                          <span>{doc.size}</span>
+                          <span>{doc.size || 'Unknown size'}</span>
                           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                          <span>Uploaded {doc.date}</span>
+                          <span>Uploaded {doc.date || 'Unknown date'}</span>
                         </div>
                       </div>
                     </div>

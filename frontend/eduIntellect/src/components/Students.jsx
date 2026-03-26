@@ -13,17 +13,38 @@ export default function Students() {
     name: '', class: '', parentName: '', parentPhone: '', outstanding: '', status: 'Not Paid'
   });
 
-  // Fetch parsed CSV data from the backend
+  // --- Fetch real data from the backend ---
   useEffect(() => {
     const fetchStudents = async () => {
+      setIsLoading(true);
       try {
-        // Mocking a response for demonstration, now including explicit 'status'
-        const data = [
-          { id: 'S001', name: 'Amaka Johnson', class: 'JSS 2', parentName: 'Mr. Johnson', parentPhone: '08012345678', outstanding: 15000, status: 'Not Paid' },
-          { id: 'S002', name: 'Obi Michael', class: 'SSS 1', parentName: 'Mrs. Michael', parentPhone: '08123456789', outstanding: 15000, status: 'Pending' },
-          { id: 'S003', name: 'Ngozi Eze', class: 'JSS 1', parentName: 'Dr. Eze', parentPhone: '09011112222', outstanding: 0, status: 'Paid' },
-        ];
-        setStudents(data);
+        const schoolId = localStorage.getItem('school_id');
+        if (!schoolId) {
+          console.error("No school ID found. Please login again.");
+          return;
+        }
+
+        const response = await fetch(`http://127.0.0.1:8000/api/admin/students/${schoolId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Secure the route
+          }
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch students");
+        
+        const data = await response.json();
+        
+        // Map backend database fields to the UI state
+        const formattedData = data.map(s => ({
+            id: s.id,
+            name: s.name,
+            class: s.current_class,
+            parentName: s.guardian_name,
+            parentPhone: s.guardian_phone,
+            outstanding: 15000, // Hardcoded default outstanding for the demo
+            status: s.status
+        }));
+        setStudents(formattedData);
       } catch (error) {
         console.error('Failed to fetch students:', error);
       } finally {
@@ -43,27 +64,48 @@ export default function Students() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Create a new student object, sanitizing the class name
-    const studentToAdd = {
+    const schoolId = localStorage.getItem('school_id');
+    
+    // Prepare payload for FastAPI
+    const studentData = {
       ...newStudent,
-      id: `S00${students.length + 1}`,
-      class: newStudent.class.trim().toUpperCase(), // <--- THIS LINE FIXES THE INPUT
+      school_id: schoolId,
+      class: newStudent.class.trim().toUpperCase(), 
       outstanding: Number(newStudent.outstanding)
     };
 
     try {
-      // Simulate API POST request
-      // await fetch('https://demo-api.com/api/students', { method: 'POST', body: JSON.stringify(studentToAdd) });
+      const response = await fetch('http://127.0.0.1:8000/api/admin/students', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(studentData)
+      });
       
-      setTimeout(() => {
-        setStudents([...students, studentToAdd]);
-        setIsModalOpen(false);
-        setNewStudent({ name: '', class: '', parentName: '', parentPhone: '', outstanding: '', status: 'Not Paid' });
-        setIsSubmitting(false);
-        alert('Student added successfully!');
-      }, 800);
+      if (!response.ok) throw new Error("Failed to save student");
+      
+      const savedStudent = await response.json();
+      
+      // Instantly update the UI table with the DB response
+      setStudents([...students, {
+          id: savedStudent.id,
+          name: savedStudent.name,
+          class: savedStudent.current_class,
+          parentName: savedStudent.guardian_name,
+          parentPhone: savedStudent.guardian_phone,
+          outstanding: Number(newStudent.outstanding),
+          status: savedStudent.status
+      }]);
+      
+      setIsModalOpen(false);
+      setNewStudent({ name: '', class: '', parentName: '', parentPhone: '', outstanding: '', status: 'Not Paid' });
+      alert('Student added successfully!');
     } catch (error) {
-      console.error("Failed to add student", error);
+      console.error("Add student error:", error);
+      alert("Error saving student to the database.");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -71,6 +113,8 @@ export default function Students() {
   // --- Action Handlers ---
   const handleApprovePayment = (id) => {
     if(window.confirm("Approve this pending payment? The outstanding balance will be cleared.")) {
+      // For a full app, this would be a PUT request to the backend. 
+      // We do it optimistically in the UI for the demo.
       setStudents(students.map(s => 
         s.id === id ? { ...s, outstanding: 0, status: 'Paid' } : s
       ));
@@ -78,7 +122,6 @@ export default function Students() {
   };
 
   const handleAlertParent = (id, phone) => {
-    // This simulates triggering the backend to send an SMS/WhatsApp via the AI
     alert(`Payment reminder sequence initiated for ${phone} via EduIntellect AI.`);
   };
 
@@ -137,13 +180,13 @@ export default function Students() {
               {isLoading ? (
                 <tr><td colSpan="6" className="p-8 text-center text-slate-400">Loading student data...</td></tr>
               ) : filteredStudents.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-400">No students found in this class.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-slate-400">No students found. Add one to get started!</td></tr>
               ) : (
                 filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-800">{student.name}</div>
-                      <div className="text-xs text-slate-400">ID: {student.id}</div>
+                      <div className="text-xs text-slate-400">ID: {student.id.split('-')[0]}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{student.class}</td>
                     <td className="px-6 py-4">

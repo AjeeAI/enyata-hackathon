@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, engine, Base
 from app.db.models import School, Student, FeeStructure, Transaction
 
+Base.metadata.drop_all(bind=engine) 
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
 
@@ -14,8 +15,9 @@ def seed_data():
         school = School(
             id=school_id,
             name="Greenwood International School",
-            interswitch_merchant_id="ISW_MOCK_12345",
-            interswitch_item_id="TUITION_001"
+            # UPDATED: Real Interswitch Sandbox Credentials
+            interswitch_merchant_id="MX6072", 
+            interswitch_item_id="9405967"
         )
         db.add(school)
 

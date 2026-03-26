@@ -2,16 +2,47 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building2, Mail, Lock, Key, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
+// InputField moved outside to prevent re-rendering focus loss
+const InputField = ({ icon: Icon, label, type, name, placeholder, value, onChange }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+    <div className="relative rounded-md shadow-sm">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Icon className="h-5 w-5 text-gray-400" />
+      </div>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        required
+        className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg py-2.5 border outline-none transition-colors bg-gray-50 focus:bg-white"
+        placeholder={placeholder}
+        onChange={onChange}
+      />
+    </div>
+  </div>
+);
+
 export default function Signup() {
   const [formData, setFormData] = useState({
-    schoolName: '', email: '', password: '', confirmPassword: '',
-    interswitchClientId: '', interswitchSecretKey: ''
+    schoolName: '', 
+    email: '', 
+    password: '', 
+    confirmPassword: '',
+    interswitchClientId: '', 
+    interswitchSecretKey: '',
+    // --- NEW FIELDS FOR MULTI-TENANCY ---
+    interswitchMerchantCode: '', 
+    interswitchPayItemId: ''
   });
+  
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -22,37 +53,27 @@ export default function Signup() {
     
     setIsLoading(true);
     try {
-      await fetch('https://demo-api.com/api/auth/signup', {
+      // Updated to point to your FastAPI Backend
+      const response = await fetch('http://127.0.0.1:8000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Signup failed");
+      }
+
+      alert("Registration successful! Please login.");
       navigate('/login');
     } catch (error) {
       console.error('Signup failed', error);
+      alert(error.message);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const InputField = ({ icon: Icon, label, type, name, placeholder }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <div className="relative rounded-md shadow-sm">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Icon className="h-5 w-5 text-gray-400" />
-        </div>
-        <input
-          type={type}
-          name={name}
-          required
-          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg py-2.5 border outline-none transition-colors bg-gray-50 focus:bg-white"
-          placeholder={placeholder}
-          onChange={handleChange}
-        />
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
@@ -72,8 +93,24 @@ export default function Signup() {
               <Building2 className="w-5 h-5 text-blue-600" /> General Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField icon={Building2} label="Name of School" type="text" name="schoolName" placeholder="Greenwood High" />
-              <InputField icon={Mail} label="Admin Email" type="email" name="email" placeholder="admin@greenwood.edu" />
+              <InputField 
+                icon={Building2} 
+                label="Name of School" 
+                type="text" 
+                name="schoolName" 
+                placeholder="Greenwood High" 
+                value={formData.schoolName}
+                onChange={handleChange}
+              />
+              <InputField 
+                icon={Mail} 
+                label="Admin Email" 
+                type="email" 
+                name="email" 
+                placeholder="admin@greenwood.edu" 
+                value={formData.email}
+                onChange={handleChange}
+              />
               
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -85,6 +122,7 @@ export default function Signup() {
                     <input
                       type={showPassword ? "text" : "password"}
                       name="password"
+                      value={formData.password}
                       required
                       className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 sm:text-sm border-gray-300 rounded-lg py-2.5 border outline-none bg-gray-50 focus:bg-white"
                       placeholder="••••••••"
@@ -99,22 +137,64 @@ export default function Signup() {
                     </button>
                   </div>
                 </div>
-                <InputField icon={Lock} label="Confirm Password" type="password" name="confirmPassword" placeholder="••••••••" />
+                <InputField 
+                  icon={Lock} 
+                  label="Confirm Password" 
+                  type="password" 
+                  name="confirmPassword" 
+                  placeholder="••••••••" 
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Integration Keys */}
+          {/* Section 2: Interswitch Configuration */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-600" /> Interswitch Configuration
             </h3>
-            <div className="space-y-4">
-              <InputField icon={Key} label="Client ID" type="text" name="interswitchClientId" placeholder="Enter Client ID" />
-              <InputField icon={Key} label="Secret Key" type="password" name="interswitchSecretKey" placeholder="Enter Secret Key" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField 
+                icon={Key} 
+                label="Client ID" 
+                type="text" 
+                name="interswitchClientId" 
+                placeholder="IKIAB..." 
+                value={formData.interswitchClientId}
+                onChange={handleChange}
+              />
+              <InputField 
+                icon={Key} 
+                label="Secret Key" 
+                type="password" 
+                name="interswitchSecretKey" 
+                placeholder="••••••••" 
+                value={formData.interswitchSecretKey}
+                onChange={handleChange}
+              />
+              <InputField 
+                icon={Key} 
+                label="Merchant Code" 
+                type="text" 
+                name="interswitchMerchantCode" 
+                placeholder="MX123..." 
+                value={formData.interswitchMerchantCode}
+                onChange={handleChange}
+              />
+              <InputField 
+                icon={Key} 
+                label="Pay Item ID" 
+                type="text" 
+                name="interswitchPayItemId" 
+                placeholder="940..." 
+                value={formData.interswitchPayItemId}
+                onChange={handleChange}
+              />
             </div>
-            <p className="mt-3 text-xs text-gray-500">
-              Your credentials are encrypted and stored securely for processing tuition payments.
+            <p className="mt-3 text-xs text-gray-500 italic">
+              Use the "General Integration" test keys from the Interswitch docs for sandbox testing.
             </p>
           </div>
 
