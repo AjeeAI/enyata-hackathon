@@ -23,3 +23,5 @@ langchain_google_genai
 langchain-groq
 langgraph
 qdrant-client
+jwt
+bcrypt
