@@ -10,7 +10,7 @@ langchain-openai
 langchain-groq
 langgraph
 qdrant-client
-pypdffastapi
+pypdf
 uvicorn
 sqlalchemy>=2.0.35
 psycopg[binary]
@@ -23,4 +23,3 @@ langchain_google_genai
 langchain-groq
 langgraph
 qdrant-client
-pypdf
