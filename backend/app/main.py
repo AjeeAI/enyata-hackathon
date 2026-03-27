@@ -14,11 +14,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="EduIntellect API")
 
 # --- CORS MIDDLEWARE ---
-# Essential for allowing your React frontend (localhost:5173) 
-# to communicate with this FastAPI backend (localhost:8000).
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Update to ["http://localhost:5173"] for production
+    allow_origins=["https://eduintellect-three.vercel.app"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

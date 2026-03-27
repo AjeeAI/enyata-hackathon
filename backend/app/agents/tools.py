@@ -3,7 +3,7 @@ from langchain_core.tools import tool
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.database import SessionLocal
-from app.db.models import Student, School, FeeStructure, Transaction 
+from app.db.models import Student, School, FeeStructure, Transaction
 from app.core.config import settings
 from app.core.security import generate_webpay_hash 
 
@@ -11,21 +11,21 @@ from app.core.security import generate_webpay_hash
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Qdrant
 import qdrant_client
-from qdrant_client.http import models as rest # <-- NEW IMPORT FOR FILTERING
+from qdrant_client.http import models as rest # <-- ADDED THIS IMPORT
 
 @tool
 def get_student_balance(guardian_phone: str) -> str:
     """Queries the database to calculate the outstanding balance for a student."""
     db: Session = SessionLocal()
     try:
-        # FIX: Bulletproof phone matching (ignores leading zero drops from LLM)
+        # Bulletproof phone matching (ignores leading zero drops from LLM)
         phone_tail = str(guardian_phone)[-10:] if len(str(guardian_phone)) >= 10 else str(guardian_phone)
         student = db.query(Student).filter(Student.guardian_phone.endswith(phone_tail)).first()
         
         if not student:
             return f"No student found linked to the phone number {guardian_phone}."
 
-        # FIX: Directly read the outstanding debt from the student record
+        # Directly read the outstanding debt from the student record
         balance = student.outstanding_debt or 0.0
 
         return (f"Student: {student.name} | Class: {student.current_class} | "
@@ -77,6 +77,7 @@ def search_school_policy(query: str, school_id: str) -> str:
         return f"Found the following information in the handbook:\n{combined_text}"
         
     except Exception as e:
+        print(f"🔴 Qdrant Search Error: {e}")
         return f"Vector search error: {str(e)}"
 
 
@@ -85,7 +86,7 @@ def generate_payment_link(amount: float, guardian_phone: str) -> str:
     """Generates a secure link using the specific school's Interswitch keys."""
     db: Session = SessionLocal()
     try:
-        # FIX: Bulletproof phone matching
+        # Bulletproof phone matching
         phone_tail = str(guardian_phone)[-10:] if len(str(guardian_phone)) >= 10 else str(guardian_phone)
         student = db.query(Student).filter(Student.guardian_phone.endswith(phone_tail)).first()
         

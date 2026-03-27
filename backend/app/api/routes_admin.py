@@ -1,6 +1,6 @@
 import os
 import tempfile
-from fastapi import APIRouter, Form, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import uuid
@@ -14,6 +14,8 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Qdrant
+import qdrant_client # <-- NEW IMPORT
+from qdrant_client.http import models as rest # <-- NEW IMPORT
 
 router = APIRouter()
 
@@ -21,12 +23,10 @@ router = APIRouter()
 def get_admin_stats(db: Session = Depends(get_db)):
     """Calculates Total Revenue and Pending Payments from Postgres."""
     
-    # Total Revenue (SUM of successful)
     total_revenue = db.query(func.sum(Transaction.amount)).filter(
         Transaction.status == "success"
     ).scalar() or 0.0
     
-    # Pending Payments (SUM of pending)
     pending_payments = db.query(func.sum(Transaction.amount)).filter(
         Transaction.status == "pending"
     ).scalar() or 0.0
@@ -38,30 +38,25 @@ def get_admin_stats(db: Session = Depends(get_db)):
 
 @router.post("/upload-policy")
 async def upload_policy(
-    file: UploadFile = File(...), 
-    school_id: str = Form(...) # <-- 1. Require the real school_id from React
+    file: UploadFile = File(...),
+    school_id: str = Form(...) 
 ):
     """Parses PDF, chunks, embeds via Google Gemini, and stores in Qdrant."""
     
-    # 1. Save uploaded file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(await file.read())
         tmp_path = tmp_file.name
 
     try:
-        # 2. Load and parse the PDF
         loader = PyPDFLoader(tmp_path)
         documents = loader.load()
         
-        # 3. Chunk the document
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
         chunks = text_splitter.split_documents(documents)
         
-        # --- THE FIX: Tag chunks with the REAL school_id ---
         for chunk in chunks:
-            chunk.metadata["school_id"] = school_id # <-- 2. Use the dynamic ID here!
+            chunk.metadata["school_id"] = school_id
             
-        # 4. Embed using Google Gemini & Store in Qdrant
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001",
             google_api_key=settings.GOOGLE_API_KEY
@@ -73,26 +68,36 @@ async def upload_policy(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY, 
             collection_name="school_policies_gemini", 
-            force_recreate=False # <-- 3. Set to False so it ADDS to the DB, rather than erasing old ones
+            force_recreate=False 
         )
         
-        return {"status": "success", "message": f"Successfully indexed {len(chunks)} chunks into Qdrant for school {school_id}."}
+        # --- THE FIX: Tell Qdrant to index the school_id field for fast filtering ---
+        client = qdrant_client.QdrantClient(
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY
+        )
+        
+        client.create_payload_index(
+            collection_name="school_policies_gemini",
+            field_name="metadata.school_id",
+            field_schema=rest.PayloadSchemaType.KEYWORD,
+        )
+        
+        return {"status": "success", "message": f"Successfully indexed {len(chunks)} chunks into Qdrant."}
         
     finally:
-        os.remove(tmp_path) # Clean up
-        
+        os.remove(tmp_path) 
+
 @router.get("/dashboard/overview/{school_id}")
 async def get_dashboard_overview(school_id: str, db: Session = Depends(get_db)):
     try:
         school_uuid = uuid.UUID(school_id)
 
-        # 1. Total Collected: Sum of all successful transactions
         total_collected = db.query(func.sum(Transaction.amount))\
             .join(Student)\
             .filter(Student.school_id == school_uuid, Transaction.status == "success")\
             .scalar() or 0.0
 
-        # 2. Recent Transactions
         recent_txs = db.query(Transaction)\
             .join(Student)\
             .filter(Student.school_id == school_uuid)\
@@ -108,12 +113,10 @@ async def get_dashboard_overview(school_id: str, db: Session = Depends(get_db)):
             "time": tx.created_at.strftime("%I:%M %p")
         } for tx in recent_txs]
 
-        # 3. REAL-TIME DEBT CALCULATION
         outstanding_debt = db.query(func.sum(Student.outstanding_debt))\
             .filter(Student.school_id == school_uuid)\
             .scalar() or 0.0
 
-        # Active Payment Plans (Students with debt > 0)
         active_plans = db.query(Student)\
             .filter(Student.school_id == school_uuid, Student.outstanding_debt > 0)\
             .count()
@@ -127,7 +130,6 @@ async def get_dashboard_overview(school_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW ENDPOINT: Manual Cash Approval ---
 @router.put("/students/{student_id}/clear-debt")
 async def manual_clear_debt(student_id: str, db: Session = Depends(get_db)):
     """Allows an admin to manually mark a student's debt as paid."""
@@ -188,8 +190,6 @@ async def get_policies(school_id: str, db: Session = Depends(get_db)):
         "status": doc.status
     } for doc in docs]
     
-    
-# --- NEW ENDPOINT: Edit Student ---
 @router.put("/students/{student_id}")
 async def update_student(student_id: str, payload: dict, db: Session = Depends(get_db)):
     """Updates an existing student's details."""
@@ -198,7 +198,6 @@ async def update_student(student_id: str, payload: dict, db: Session = Depends(g
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
 
-        # Update fields if provided in payload
         if 'name' in payload: student.name = payload['name']
         if 'class' in payload: student.current_class = payload['class']
         if 'parentName' in payload: student.guardian_name = payload['parentName']
@@ -213,7 +212,6 @@ async def update_student(student_id: str, payload: dict, db: Session = Depends(g
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW ENDPOINT: Delete Student ---
 @router.delete("/students/{student_id}")
 async def delete_student(student_id: str, db: Session = Depends(get_db)):
     """Deletes a student and their associated transactions."""
@@ -223,10 +221,8 @@ async def delete_student(student_id: str, db: Session = Depends(get_db)):
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
 
-        # 1. Delete associated transactions first to prevent foreign key errors
         db.query(Transaction).filter(Transaction.student_id == student_uuid).delete()
         
-        # 2. Delete the student
         db.delete(student)
         db.commit()
         return {"message": "Student deleted successfully"}
