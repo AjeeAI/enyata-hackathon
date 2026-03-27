@@ -97,12 +97,16 @@ This project was built collaboratively by a two-person team, dividing the archit
    ```
 
 2. Navigate to the frontend directory:
-###cd enyata-hackathon/frontend 
-**Install dependencies:**
+    ```bash
+    cd enyata-hackathon/frontend 
+    ```
+
+3. Install dependencies:**
     ```bash
     npm install
     ```
-**Start the development server:**
+
+4. Start the development server:**
     ```bash
     npm run dev
     ```
