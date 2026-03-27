@@ -42,15 +42,19 @@ async def signup(payload: dict, db: Session = Depends(get_db)):
 
 @router.post("/login")
 async def login(payload: dict, db: Session = Depends(get_db)):
-    # Verify credentials from Login.jsx
     user = db.query(User).filter(User.email == payload['email']).first()
     if not user or not verify_password(payload['password'], user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # Include school_id in the token so the frontend knows which school is active
     token = create_access_token({
         "sub": str(user.id), 
         "email": user.email,
         "school_id": str(user.school_id)
     })
-    return {"access_token": token, "token_type": "bearer"}
+    
+    # THE FIX: Return school_id explicitly so React can see it!
+    return {
+        "access_token": token, 
+        "token_type": "bearer",
+        "school_id": str(user.school_id) 
+    }

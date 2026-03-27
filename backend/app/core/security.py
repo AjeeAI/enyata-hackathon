@@ -48,27 +48,20 @@ def generate_webpay_hash(txn_ref: str, amount: int, item_id: str, client_id: str
     raw_string = f"{txn_ref}{client_id}{item_id}{amount}{mac_key}"
     return hashlib.sha512(raw_string.encode('utf-8')).hexdigest()
 
-def verify_transaction(txn_ref: str, client_id: str, mac_key: str) -> bool:
+def verify_transaction(txn_ref: str, amount: int, merchant_code: str, mac_key: str = "") -> bool:
     """
-    Calls the Interswitch Inquiry API using a school's specific credentials.
-    Ensures that payments are verified against the correct merchant account.
+    Calls the modern Interswitch Collections API using the exact URL from the documentation.
     """
-    url = f"https://sandbox.interswitchng.com/api/v2/quickteller/transactions?requestReference={txn_ref}"
-    
-    # Inquiry Signature Formula: product_id + txn_ref + MAC_KEY
-    inquiry_string = f"{client_id}{txn_ref}{mac_key}"
-    signature = hashlib.sha512(inquiry_string.encode('utf-8')).hexdigest()
-    
-    # InterswitchAuth requires the specific school's Client ID to be Base64 encoded
-    auth_token = base64.b64encode(client_id.encode('ascii')).decode('ascii')
+    # THE FIX: Using the official QA endpoint from the documentation
+    url = f"https://qa.interswitchng.com/collections/api/v1/gettransaction.json?merchantcode={merchant_code}&transactionreference={txn_ref}&amount={amount}"
     
     headers = {
-        "Authorization": f"InterswitchAuth {auth_token}",
-        "Signature": signature,
-        "SignatureMethod": "SHA512",
-        "TerminalID": "3DMO0001", # Standard Interswitch Sandbox Terminal ID
         "Content-Type": "application/json"
     }
+    
+    # Note: If Interswitch requires the Hash header for this specific endpoint in your sandbox, 
+    # it is usually SHA512(merchant_code + txn_ref + mac_key). 
+    # We will try the raw request first as per the cURL example in the docs!
     
     try:
         response = requests.get(url, headers=headers, timeout=10)

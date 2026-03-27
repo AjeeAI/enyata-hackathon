@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   UploadCloud, 
   FileText, 
@@ -9,6 +9,7 @@ import {
   AlertCircle,
   File
 } from 'lucide-react';
+import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
 
 export default function Policies() {
   const [isUploading, setIsUploading] = useState(false);
@@ -17,6 +18,9 @@ export default function Policies() {
   const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef(null);
 
+  // --- NEW: Modal State ---
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
   // --- Fetch Documents on Mount ---
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -24,7 +28,6 @@ export default function Policies() {
       try {
         const schoolId = localStorage.getItem('school_id');
         
-        // FIX 1: Guard clause to prevent fetching with a null ID
         if (!schoolId || schoolId === 'null') {
           console.warn("No valid school_id found in localStorage. Skipping fetch.");
           setIsLoading(false);
@@ -38,10 +41,15 @@ export default function Policies() {
         if (!response.ok) throw new Error("Failed to fetch documents");
         const data = await response.json();
         
-        // Ensure we always set an array
         setDocuments(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to fetch documents:', error);
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Connection Error',
+          message: 'Could not load your school policies. Please check your connection.'
+        });
       } finally {
         setIsLoading(false);
       }
@@ -82,26 +90,58 @@ export default function Policies() {
       const newDoc = await response.json(); 
       setDocuments(prevDocs => [newDoc, ...prevDocs]);
       
+      // --- NEW: Success Modal ---
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Upload Successful',
+        message: 'The document has been securely uploaded and the AI is indexing it.'
+      });
+      
     } catch (error) {
       console.error('Upload failed', error);
-      alert('Failed to upload document to the AI knowledge base.');
+      // --- NEW: Error Modal ---
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Upload Failed',
+        message: 'Failed to upload document to the AI knowledge base. Ensure it is a valid PDF or Word file under 10MB.'
+      });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const deleteDocument = async (id) => {
+  // --- NEW: Confirmation Modal for Deletion ---
+  const triggerDelete = (id) => {
+    setModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Delete Document',
+      message: 'Are you sure you want to delete this policy? The AI will no longer use this information to answer parent queries. This cannot be undone.',
+      confirmText: 'Yes, Delete',
+      showCancel: true,
+      onConfirm: () => executeDelete(id)
+    });
+  };
+
+  const executeDelete = async (id) => {
       setDocuments(documents.filter(doc => doc.id !== id));
       try {
           // Implement backend delete later
           // await fetch(`http://127.0.0.1:8000/api/admin/policies/${id}`, { method: 'DELETE' });
       } catch (error){
-          console.error("Failed to delete doc", error)
+          console.error("Failed to delete doc", error);
+          setModal({
+            isOpen: true,
+            type: 'error',
+            title: 'Delete Failed',
+            message: 'Could not remove the document from the server.'
+          });
       }
   };
 
-  // FIX 2: Added optional chaining (?.) and fallback to prevent crashes if doc.name is missing
   const filteredDocs = documents.filter(doc => {
     const docName = doc?.name || ''; 
     return docName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -131,8 +171,14 @@ export default function Policies() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 relative">
       
+      {/* --- RENDER THE MODAL --- */}
+      <CustomModal 
+        {...modal} 
+        onClose={() => setModal({ ...modal, isOpen: false })} 
+      />
+
       {/* Header Info */}
       <div className="flex flex-col mb-2">
         <h1 className="text-2xl font-bold text-slate-800">Knowledge Base (RAG)</h1>
@@ -235,7 +281,7 @@ export default function Policies() {
                       {getStatusDisplay(doc.status)}
                       
                       <button 
-                        onClick={() => deleteDocument(doc.id)}
+                        onClick={() => triggerDelete(doc.id)}
                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title="Delete Document"
                       >

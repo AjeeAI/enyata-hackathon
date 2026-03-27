@@ -12,8 +12,9 @@ class AgentState(TypedDict):
 
 class RouteDecision(BaseModel):
     """Decision on which specialist agent to call next."""
-    next_agent: Literal["sql_agent", "policy_rag_agent", "payment_agent", "FINISH"] = Field(
-        description="Which specialist to call next, or FINISH if the task is complete"
+    # ADDED: "general_agent" to handle chit-chat and greetings
+    next_agent: Literal["sql_agent", "policy_rag_agent", "payment_agent", "general_agent", "FINISH"] = Field(
+        description="Which specialist to call next, general_agent for chit-chat, or FINISH if the task is complete"
     )
     reasoning: str = Field(
         description="Brief explanation for this routing decision"

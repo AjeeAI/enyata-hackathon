@@ -1,54 +1,61 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional
 
 from app.db.database import get_db
-from app.db.models import Transaction, School
+from app.db.models import Transaction, School, Student
 from app.core.security import verify_transaction
 
 router = APIRouter()
 
-class InterswitchWebhookPayload(BaseModel):
-    paymentReference: str  
-    responseCode: str
-    amount: Optional[float] = None
-
+# THE FIX: Interswitch sends Form Data, not JSON! We use Form(...) to catch it.
 @router.post("/interswitch")
 async def interswitch_webhook(
-    payload: InterswitchWebhookPayload, 
+    txnref: str = Form(...),
+    amount: int = Form(...),
+    resp: str = Form(...),
+    desc: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """Receives payment status updates from Interswitch securely."""
     
-    payment_ref = payload.paymentReference
-    response_code = payload.responseCode
-        
     transaction = db.query(Transaction).filter(
-        Transaction.payment_reference == payment_ref
+        Transaction.payment_reference == txnref
     ).first()
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
         
-    if response_code == "00":
+    if resp == "00":
         # Security check: Verify the payment with Interswitch directly
         school = db.query(School).filter(School.id == transaction.student.school_id).first()
         
         is_verified = verify_transaction(
-            txn_ref=payment_ref, 
-            amount=int(transaction.amount * 100), 
-            item_id=school.interswitch_item_id
+            txn_ref=txnref, 
+            amount=amount, 
+            merchant_code=school.interswitch_merchant_code or "MX6072"
         )
         
         if is_verified:
             transaction.status = "success"
+            
+            # --- BONUS HACKATHON FEATURE ---
+            # Automatically update the student's outstanding debt!
+            paid_amount_in_naira = amount / 100
+            
+            if transaction.student.outstanding_debt:
+                transaction.student.outstanding_debt -= paid_amount_in_naira
+                # Prevent negative debt
+                if transaction.student.outstanding_debt <= 0:
+                    transaction.student.outstanding_debt = 0.0
+                    transaction.student.status = "Paid"
+            
         else:
-            print(f"⚠️ Spoofed payment detected for {payment_ref}")
+            print(f"⚠️ Spoofed payment detected for {txnref}")
             transaction.status = "failed"
     else:
         transaction.status = "failed"
         
     db.commit()
     
-    return {"status": "success", "message": f"Transaction {payment_ref} updated"}
+    return {"status": "success", "message": f"Transaction {txnref} updated"}

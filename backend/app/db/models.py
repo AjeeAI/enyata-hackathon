@@ -43,18 +43,19 @@ class School(Base):
 # 3. STUDENT MODEL (Directory & UI Data)
 # ==========================================
 class Student(Base):
-    """Matches the 'Student Directory' columns in your frontend."""
     __tablename__ = "students"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"))
     
-    name = Column(String, nullable=False)             # Student Name
-    current_class = Column(String, nullable=False)    # e.g., JSS 1
-    guardian_name = Column(String, nullable=False)    # "Parent Name" column
-    guardian_phone = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)             
+    current_class = Column(String, nullable=False)    # Changed from class_name
+    guardian_name = Column(String, nullable=False)    # Changed from parent_name
+    guardian_phone = Column(String, index=True, nullable=False)
     
-    # Matches UI Status: 'Paid', 'Pending', 'Not Paid'
     status = Column(String, default="Not Paid")
+    
+    # ADD THIS LINE:
+    outstanding_debt = Column(Float, default=0.0)
 
     school = relationship("School", back_populates="students")
     transactions = relationship("Transaction", back_populates="student")

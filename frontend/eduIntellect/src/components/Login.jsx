@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
 
 export default function Login() {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
@@ -8,13 +9,38 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => setCredentials({ ...credentials, [e.target.name]: e.target.value });
+  // --- Modal & Error States ---
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [errors, setErrors] = useState({});
 
- const handleLogin = async (e) => {
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setCredentials({ ...credentials, [name]: value });
+    
+    // Clear specific error when the user starts typing
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: null });
+    }
+  };
+
+  // --- NEW: Custom Validation Logic ---
+  const validateForm = () => {
+    const newErrors = {};
+    if (!credentials.email.trim()) newErrors.email = 'Email address is required';
+    if (!credentials.password) newErrors.password = 'Password is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // Stop submission if validation fails
+    if (!validateForm()) return;
+
     setIsLoading(true);
     try {
-      // 1. Point to your local FastAPI backend
       const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,30 +50,49 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        // 2. Store the JWT token securely in the browser
         localStorage.setItem('token', data.access_token);
         
-        // Optional: store school_id if you need it for filtering dashboard stats
         if (data.school_id) {
           localStorage.setItem('school_id', data.school_id);
         }
 
-        console.log('Login successful');
-        navigate('/admin');
+        setModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Welcome Back!',
+          message: 'Securely logging you into the dashboard...',
+          onConfirm: () => navigate('/admin') 
+        });
       } else {
-        // 3. Handle specific error messages from your backend
-        alert(data.detail || "Invalid email or password.");
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Login Failed',
+          message: data.detail || "Invalid email or password.",
+        });
       }
     } catch (error) {
       console.error('Login failed:', error);
-      alert("Could not connect to the server. Is the backend running?");
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Connection Error',
+        message: "Could not connect to the server. Is the backend running?",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      
+      {/* --- RENDER THE MODAL --- */}
+      <CustomModal 
+        {...modal} 
+        onClose={() => setModal({ ...modal, isOpen: false })} 
+      />
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -64,38 +109,53 @@ export default function Login() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
-          <form className="space-y-6" onSubmit={handleLogin}>
+          
+          {/* --- ADDED noValidate HERE --- */}
+          <form className="space-y-6" onSubmit={handleLogin} noValidate>
             
             {/* Email Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email address</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+              <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <Mail className={`h-5 w-5 ${errors.email ? 'text-red-400' : 'text-gray-400'}`} />
                 </div>
                 <input
                   type="email"
                   name="email"
-                  required
-                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg py-3 border outline-none transition-colors bg-gray-50 focus:bg-white"
+                  value={credentials.email}
+                  className={`block w-full pl-10 sm:text-sm rounded-lg py-3 border outline-none transition-colors ${
+                    errors.email 
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white'
+                  }`}
                   placeholder="admin@school.edu"
                   onChange={handleChange}
                 />
               </div>
+              {errors.email && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />{errors.email}
+                </p>
+              )}
             </div>
 
             {/* Password Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Lock className={`h-5 w-5 ${errors.password ? 'text-red-400' : 'text-gray-400'}`} />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password"
-                  required
-                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 sm:text-sm border-gray-300 rounded-lg py-3 border outline-none transition-colors bg-gray-50 focus:bg-white"
+                  value={credentials.password}
+                  className={`block w-full pl-10 pr-10 sm:text-sm rounded-lg py-3 border outline-none transition-colors ${
+                    errors.password 
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white'
+                  }`}
                   placeholder="••••••••"
                   onChange={handleChange}
                 />
@@ -111,6 +171,11 @@ export default function Login() {
                   )}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />{errors.password}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between">

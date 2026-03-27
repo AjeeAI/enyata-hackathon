@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, Shield, Key, CreditCard, Eye, EyeOff, 
-  Copy, CheckCircle2, Lock, Globe, ImagePlus, X, AlertCircle, Building2
+  Copy, CheckCircle2, Lock, Globe, ImagePlus, X, AlertCircle, Building2, LogOut 
 } from 'lucide-react';
+import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
 
 export default function Settings() {
-  // --- Custom Notification State ---
+  const navigate = useNavigate();
+
+  // --- Custom Notification State (Toasts) ---
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // --- NEW: Modal State for Logout ---
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   // --- UI States ---
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -23,9 +30,8 @@ export default function Settings() {
   }, []);
 
   // --- Profile Data ---
-  // In a real app, schoolName and email would be fetched from the backend on load
   const [profileData, setProfileData] = useState({
-    schoolName: 'Excel Academy', // Updated to reflect the school
+    schoolName: 'Excel Academy', 
     email: 'admin@excelacademy.edu.ng',
     phone: '+2349130411877',
     role: 'Super Admin'
@@ -37,13 +43,12 @@ export default function Settings() {
     webhookUrl: 'https://eduintellect.com/api/webhooks/interswitch'
   });
 
-  // --- Custom Alert Function ---
+  // --- Custom Alert Function (For non-blocking saves) ---
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
   };
 
-  // Note: Only phone number uses this handler now, as name and email are locked
   const handleProfileChange = (e) => setProfileData({ ...profileData, [e.target.name]: e.target.value });
   const handleKeyChange = (e) => setApiKeys({ ...apiKeys, [e.target.name]: e.target.value });
 
@@ -83,9 +88,34 @@ export default function Settings() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  // --- UPGRADED LOGOUT HANDLER ---
+  const handleLogoutClick = () => {
+    setModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Sign Out',
+      message: 'Are you sure you want to log out of the Admin Portal? You will need to sign in again to access these settings.',
+      confirmText: 'Yes, Sign Out',
+      showCancel: true,
+      onConfirm: executeLogout
+    });
+  };
+
+  const executeLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('school_id');
+    navigate('/'); 
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 relative">
       
+      {/* --- RENDER THE MODAL --- */}
+      <CustomModal 
+        {...modal} 
+        onClose={() => setModal({ ...modal, isOpen: false })} 
+      />
+
       {/* --- CUSTOM TOAST NOTIFICATION --- */}
       <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white transform transition-all duration-300 ${toast.show ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0 pointer-events-none'} ${toast.type === 'success' ? 'bg-slate-900 border border-slate-700' : 'bg-red-500'}`}>
         {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-[#00C48C]" /> : <AlertCircle className="w-5 h-5 text-white" />}
@@ -95,9 +125,11 @@ export default function Settings() {
         </button>
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">System Settings</h1>
-        <p className="text-slate-500 text-sm mt-1">Manage your account details and integrations.</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">System Settings</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage your account details and integrations.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -205,7 +237,18 @@ export default function Settings() {
                 </div>
 
               </div>
-              <div className="pt-2 flex justify-end">
+              <div className="pt-4 mt-2 border-t border-slate-100 flex justify-between items-center">
+                
+                {/* --- THE LOGOUT BUTTON --- */}
+                <button 
+                  type="button" 
+                  onClick={handleLogoutClick}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+
                 <button type="submit" disabled={isSavingProfile} className="bg-[#0F172A] text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-70">
                   {isSavingProfile ? 'Saving...' : 'Save Contact Details'}
                 </button>
@@ -217,7 +260,7 @@ export default function Settings() {
         {/* Interswitch Setup */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sticky top-6">
-            <div className="px-6 py-5 bg-linear-to-r from-blue-900 to-slate-900 text-white flex items-center justify-between">
+            <div className="px-6 py-5 bg-gradient-to-r from-blue-900 to-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-blue-300" />
                 <h2 className="font-semibold">Interswitch Setup</h2>
@@ -230,7 +273,11 @@ export default function Settings() {
                   <p className="text-sm font-medium text-slate-800">Environment</p>
                   <p className="text-xs text-slate-500">{environment === 'test' ? 'Sandbox mode active' : 'Live processing active'}</p>
                 </div>
-                <button type="button" onClick={() => setEnvironment(env => env === 'test' ? 'live' : 'test')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${environment === 'live' ? 'bg-[#00C48C]' : 'bg-slate-300'}`}>
+                <button 
+                  type="button" 
+                  onClick={() => setEnvironment(env => env === 'test' ? 'live' : 'test')} 
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${environment === 'live' ? 'bg-[#00C48C]' : 'bg-slate-300'}`}
+                >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${environment === 'live' ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>

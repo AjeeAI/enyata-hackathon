@@ -3,43 +3,32 @@ from langchain_core.tools import tool
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.database import SessionLocal
-from app.db.models import Student, School, FeeStructure, Transaction # Added School
+from app.db.models import Student, School, FeeStructure, Transaction 
 from app.core.config import settings
-from app.core.security import generate_webpay_hash # Import our security logic
+from app.core.security import generate_webpay_hash 
 
 # --- RAG Imports using Google GenAI ---
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Qdrant
 import qdrant_client
+from qdrant_client.http import models as rest # <-- NEW IMPORT FOR FILTERING
 
 @tool
 def get_student_balance(guardian_phone: str) -> str:
     """Queries the database to calculate the outstanding balance for a student."""
     db: Session = SessionLocal()
     try:
-        student = db.query(Student).filter(Student.guardian_phone == guardian_phone).first()
+        # FIX: Bulletproof phone matching (ignores leading zero drops from LLM)
+        phone_tail = str(guardian_phone)[-10:] if len(str(guardian_phone)) >= 10 else str(guardian_phone)
+        student = db.query(Student).filter(Student.guardian_phone.endswith(phone_tail)).first()
+        
         if not student:
             return f"No student found linked to the phone number {guardian_phone}."
 
-        fees = db.query(FeeStructure).filter(
-            FeeStructure.school_id == student.school_id,
-            FeeStructure.class_name == student.current_class
-        ).first()
-        
-        if not fees:
-            return f"Fee structure not found for {student.name}'s class."
-            
-        total_expected = (fees.total_tuition or 0.0) + (fees.pta_fee or 0.0)
-
-        paid_amount = db.query(func.sum(Transaction.amount)).filter(
-            Transaction.student_id == student.id,
-            Transaction.status == "success"
-        ).scalar() or 0.0
-
-        balance = total_expected - paid_amount
+        # FIX: Directly read the outstanding debt from the student record
+        balance = student.outstanding_debt or 0.0
 
         return (f"Student: {student.name} | Class: {student.current_class} | "
-                f"Total Fees: ₦{total_expected:,.2f} | Paid: ₦{paid_amount:,.2f} | "
                 f"Outstanding Balance: ₦{balance:,.2f}")
     except Exception as e:
         return f"Database error occurred: {str(e)}"
@@ -67,7 +56,19 @@ def search_school_policy(query: str, school_id: str) -> str:
             embeddings=embeddings
         )
         
-        docs = qdrant_store.similarity_search(query=query, k=3)
+        # --- THE FIX: Multi-tenant filtering ---
+        # Ensures the AI only searches documents belonging to this specific school
+        search_filter = rest.Filter(
+            must=[
+                rest.FieldCondition(
+                    key="metadata.school_id", 
+                    match=rest.MatchValue(value=school_id)
+                )
+            ]
+        )
+        
+        # Apply the filter to the search
+        docs = qdrant_store.similarity_search(query=query, k=3, filter=search_filter)
         
         if not docs:
             return "No relevant policies found regarding that query."
@@ -84,8 +85,10 @@ def generate_payment_link(amount: float, guardian_phone: str) -> str:
     """Generates a secure link using the specific school's Interswitch keys."""
     db: Session = SessionLocal()
     try:
-        # 1. Look up student and their school
-        student = db.query(Student).filter(Student.guardian_phone == guardian_phone).first()
+        # FIX: Bulletproof phone matching
+        phone_tail = str(guardian_phone)[-10:] if len(str(guardian_phone)) >= 10 else str(guardian_phone)
+        student = db.query(Student).filter(Student.guardian_phone.endswith(phone_tail)).first()
+        
         if not student:
             return f"Cannot generate link: No student found for phone {guardian_phone}."
 

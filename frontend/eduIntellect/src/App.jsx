@@ -1,5 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// Import all your components
+import Home from './components/Home';
 import Signup from './components/Signup';
 import Login from './components/Login';
 import DashboardLayout from './components/DashboardLayout';
@@ -13,10 +16,12 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        {/* The new root route that renders your Home.jsx landing page */}
+        <Route path="/" element={<Home />} />
+        
         {/* Public Auth Routes */}
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Navigate to="/login" />} />
 
         {/* Public Parent Chat Route */}
         <Route path="/chat/:studentId" element={<ParentChat />} />
