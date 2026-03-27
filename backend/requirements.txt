@@ -6,6 +6,8 @@ pydantic>=2.9.0
 pydantic-settings>=2.5.0
 python-dotenv
 langchain>=0.2.0
+langchain-core
+langchain-community  # <-- CRITICAL ADDITION
 langchain-openai
 langchain_google_genai
 langchain-groq
