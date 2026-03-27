@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Bot, Shield } from 'lucide-react';
-import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
+import CustomModal from './CustomModal';
 
 export default function Home() {
   const [studentId, setStudentId] = useState('');
   const navigate = useNavigate();
-
-  // --- NEW: Modal State ---
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const handleParentChat = (e) => {
     e.preventDefault();
     
-    // Check if the input is empty or just spaces
     if (!studentId.trim()) {
       setModal({
         isOpen: true,
@@ -24,29 +23,23 @@ export default function Home() {
       return;
     }
 
-    // Routes the parent directly to their specific chat room
     navigate(`/chat/${studentId.trim()}`);
   };
 
   return (
-    <div className="min-h-screen bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-slate-50 flex flex-col items-center justify-center p-4 relative">
-      
-      {/* --- RENDER THE MODAL --- */}
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative">
       <CustomModal 
         {...modal} 
         onClose={() => setModal({ ...modal, isOpen: false })} 
       />
 
       <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full space-y-8 text-center border border-slate-100 relative z-10">
-        
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Excel Academy</h1>
           <p className="text-slate-500 mt-2">Welcome! Please select your portal.</p>
         </div>
 
         <div className="space-y-6 pt-2">
-          
-          {/* Option 1: The "Chat as a Parent" Portal */}
           <div className="bg-emerald-50/50 p-6 rounded-xl border border-emerald-100">
             <div className="flex items-center justify-center gap-2 mb-4 text-[#00C48C]">
               <Bot className="w-6 h-6" />
@@ -79,7 +72,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Option 2: The Admin Portal */}
           <div>
             <Link 
               to="/login" 
@@ -88,7 +80,6 @@ export default function Home() {
               <Shield className="w-4 h-4" /> Admin Login
             </Link>
           </div>
-
         </div>
       </div>
     </div>

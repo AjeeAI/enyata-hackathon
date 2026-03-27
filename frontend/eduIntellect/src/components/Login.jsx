@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
-import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, MessageSquare } from 'lucide-react';
+import CustomModal from './CustomModal';
 
 export default function Login() {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
@@ -13,35 +13,32 @@ export default function Login() {
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [errors, setErrors] = useState({});
 
+  // --- THE URL FIX ---
+  // Uses Vite's env variable system
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setCredentials({ ...credentials, [name]: value });
-    
-    // Clear specific error when the user starts typing
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: null });
-    }
+    if (errors[name]) setErrors({ ...errors, [name]: null });
   };
 
-  // --- NEW: Custom Validation Logic ---
   const validateForm = () => {
     const newErrors = {};
     if (!credentials.email.trim()) newErrors.email = 'Email address is required';
     if (!credentials.password) newErrors.password = 'Password is required';
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    
-    // Stop submission if validation fails
     if (!validateForm()) return;
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
+      // --- UPDATED FETCH URL ---
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -51,10 +48,7 @@ export default function Login() {
 
       if (response.ok) {
         localStorage.setItem('token', data.access_token);
-        
-        if (data.school_id) {
-          localStorage.setItem('school_id', data.school_id);
-        }
+        if (data.school_id) localStorage.setItem('school_id', data.school_id);
 
         setModal({
           isOpen: true,
@@ -77,7 +71,7 @@ export default function Login() {
         isOpen: true,
         type: 'error',
         title: 'Connection Error',
-        message: "Could not connect to the server. Is the backend running?",
+        message: "Could not connect to the server. Please check your internet connection.",
       });
     } finally {
       setIsLoading(false);
@@ -86,8 +80,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
-      
-      {/* --- RENDER THE MODAL --- */}
       <CustomModal 
         {...modal} 
         onClose={() => setModal({ ...modal, isOpen: false })} 
@@ -109,11 +101,7 @@ export default function Login() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
-          
-          {/* --- ADDED noValidate HERE --- */}
           <form className="space-y-6" onSubmit={handleLogin} noValidate>
-            
-            {/* Email Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
               <div className="relative rounded-md shadow-sm">
@@ -140,7 +128,6 @@ export default function Login() {
               )}
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <div className="relative rounded-md shadow-sm">
@@ -178,25 +165,6 @@ export default function Login() {
               )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
-              <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-                  Forgot your password?
-                </a>
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
@@ -207,13 +175,16 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-                Register your school
-              </Link>
-            </p>
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+             {/* --- NEW PARENT CHAT BUTTON --- */}
+             <p className="text-xs text-slate-400 mb-3 uppercase tracking-wider font-semibold">Are you a parent?</p>
+             <Link 
+              to="/chat" 
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-colors"
+             >
+               <MessageSquare className="w-4 h-4" />
+               Talk to AI Assistant
+             </Link>
           </div>
         </div>
       </div>

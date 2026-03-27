@@ -1,28 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, CreditCard, Users, Building2 } from 'lucide-react';
-import CustomModal from './CustomModal'; // <-- IMPORT THE MODAL
+import CustomModal from './CustomModal';
 
 export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
-
-  // Dynamic state to hold backend data, including the new schoolName field
   const [dashboardData, setDashboardData] = useState({
-    schoolName: 'Loading...', // <-- Added to track the dynamic school name
+    schoolName: 'Loading...',
     totalCollected: 0,
     outstandingDebt: 0,
     activePaymentPlans: 0,
     recentTransactions: []
   });
 
-  // Fetch data from the database
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
       const schoolId = localStorage.getItem('school_id'); 
       const token = localStorage.getItem('token');
 
-      if (!schoolId || schoolId === 'null' || schoolId === 'undefined') {
+      if (!schoolId || schoolId === 'null') {
         setModal({
           isOpen: true,
           type: 'error',
@@ -33,7 +32,7 @@ export default function Dashboard() {
         return;
       }
 
-      const response = await fetch(`http://127.0.0.1:8000/api/admin/dashboard/overview/${schoolId}`, {
+      const response = await fetch(`${API_URL}/api/admin/dashboard/overview/${schoolId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -50,7 +49,7 @@ export default function Dashboard() {
         isOpen: true,
         type: 'error',
         title: 'Connection Error',
-        message: 'Could not load your dashboard statistics. Please check your connection.'
+        message: 'Could not load dashboard statistics. Please check your connection.'
       });
     } finally {
       setIsLoading(false);
@@ -63,14 +62,11 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      
-      {/* --- MOUNT THE CUSTOM MODAL --- */}
       <CustomModal 
         {...modal} 
         onClose={() => setModal({ ...modal, isOpen: false })} 
       />
 
-      {/* Header Info */}
       <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Bursary Overview</h1>
@@ -78,14 +74,12 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
           <Building2 className="w-5 h-5 text-emerald-600" />
-          {/* THE FIX: Dynamically render the school name */}
           <span className="text-sm font-bold text-slate-700">
             {dashboardData.schoolName || 'My School'}
           </span>
         </div>
       </div>
 
-      {/* Stats Cards - Responsive Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-start gap-4 hover:shadow-md transition-shadow">
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
@@ -124,7 +118,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content: Recent Transactions Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden flex flex-col w-full">
         <div className="p-6 border-b border-slate-50">
           <h3 className="font-bold text-slate-800">Recent Transactions</h3>

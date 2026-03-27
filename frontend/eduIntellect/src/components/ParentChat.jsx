@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Send, Bot, CreditCard, ShieldCheck, ArrowRight, Building2, Lock, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, CreditCard, ArrowRight, Building2, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CustomModal from './CustomModal';
 
@@ -11,6 +11,9 @@ export default function ParentChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [threadId] = useState(() => 'session_' + Math.random().toString(36).substring(2, 15));
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+  // Use environment variable for the API URL
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const [messages, setMessages] = useState([
     {
@@ -30,18 +33,16 @@ export default function ParentChat() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    // 1. Add user message to UI
     const newUserMsg = { id: Date.now(), sender: 'parent', type: 'text', text: input };
     setMessages((prev) => [...prev, newUserMsg]);
     setInput('');
     setIsTyping(true);
 
-    // 2. Create a placeholder for the AI response
     const aiMsgId = Date.now() + 1;
     setMessages((prev) => [...prev, { id: aiMsgId, sender: 'bot', type: 'text', text: '' }]);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/chat/', {
+      const response = await fetch(`${API_URL}/api/chat/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -52,15 +53,12 @@ export default function ParentChat() {
         }),
       });
 
-      // 1. ADD: Check if the initial connection failed
-      if (!response.ok) throw new Error("Server error");
-      if (!response.body) throw new Error("No response body");
+      if (!response.ok || !response.body) throw new Error("Connection failed");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
 
-      // 2. IMPROVED LOOP: Explicitly exit when finished
       streamingLoop: while (true) {
         const { value, done } = await reader.read();
         if (done) break streamingLoop;
@@ -72,10 +70,7 @@ export default function ParentChat() {
           if (line.startsWith('data: ')) {
             const dataStr = line.replace('data: ', '').trim();
             
-            // 3. THE CRITICAL FIX: Break the OUTER loop (streamingLoop) immediately
-            if (dataStr === '[DONE]') {
-              break streamingLoop; 
-            }
+            if (dataStr === '[DONE]') break streamingLoop; 
 
             try {
               const data = JSON.parse(dataStr);
@@ -104,17 +99,14 @@ export default function ParentChat() {
                 }]);
               }
             } catch (e) {
-              // Ignore partial JSON chunks if they happen
+               // Handle potential partial JSON chunks
             }
           }
         }
       }
     } catch (error) {
-      // 4. LOG: Check your console to see exactly what triggered the lost connection
       console.error("Stream interrupted:", error);
       
-      // Only show error if we haven't actually received a response yet
-      // This prevents "ghost" errors at the end of successful chats
       setMessages((prev) => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg?.sender === 'bot' && lastMsg?.text?.length > 0) return prev;
@@ -131,9 +123,8 @@ export default function ParentChat() {
     }
   };
 
- const handlePaymentClick = (url) => {
+  const handlePaymentClick = (url) => {
     if (url) {
-      // Open the payment link in a new tab securely
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
       setModal({
@@ -144,11 +135,11 @@ export default function ParentChat() {
       });
     }
   };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans overflow-hidden relative">
       <CustomModal {...modal} onClose={() => setModal({ ...modal, isOpen: false })} />
 
-      {/* Sidebar - Same Branding */}
       <aside className="hidden md:flex md:w-1/3 lg:w-1/4 bg-[#0F172A] text-white p-8 flex-col justify-between shadow-xl z-10">
         <div>
           <div className="flex items-center gap-3 mb-10">
@@ -169,7 +160,6 @@ export default function ParentChat() {
         <div className="flex items-center gap-2 text-slate-400 text-sm"><Lock className="w-4 h-4" /> Secure SSL</div>
       </aside>
 
-      {/* Chat Area */}
       <main className="flex-1 flex flex-col h-screen relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-slate-50">
         <div className="md:hidden bg-[#0F172A] px-4 py-3 flex items-center gap-3 shadow-md z-10">
           <div className="w-8 h-8 bg-[#00C48C] rounded-full flex items-center justify-center"><Bot className="w-5 h-5 text-white" /></div>

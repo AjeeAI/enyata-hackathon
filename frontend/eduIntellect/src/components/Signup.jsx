@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Building2, Mail, Lock, Key, ShieldCheck, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Building2, Mail, Lock, Key, ShieldCheck, Eye, EyeOff, AlertCircle, MessageSquare } from 'lucide-react';
 import CustomModal from './CustomModal'; 
 
-// --- UPGRADED: InputField now accepts and displays inline errors ---
 const InputField = ({ icon: Icon, label, type, name, placeholder, value, onChange, error }) => (
   <div>
     <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -47,23 +46,17 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
-  
-  // --- NEW: Inline Error State ---
   const [errors, setErrors] = useState({});
+
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    
-    // Clear the specific error when the user starts typing
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: null });
-    }
+    if (errors[name]) setErrors({ ...errors, [name]: null });
   };
 
-  // --- NEW: Custom Validation Logic ---
   const validateForm = () => {
     const newErrors = {};
     if (!formData.schoolName.trim()) newErrors.schoolName = 'School Name is required';
@@ -85,13 +78,11 @@ export default function Signup() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    
-    // Stop submission if validation fails
     if (!validateForm()) return;
     
     setIsLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/auth/signup', {
+      const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -124,23 +115,15 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center relative">
-      
-      <CustomModal 
-        {...modal} 
-        onClose={() => setModal({ ...modal, isOpen: false })} 
-      />
+      <CustomModal {...modal} onClose={() => setModal({ ...modal, isOpen: false })} />
 
       <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        
         <div className="bg-blue-600 px-8 py-6 text-white text-center">
           <h2 className="text-3xl font-bold">Register School</h2>
           <p className="mt-2 text-blue-100">Set up your administrative environment</p>
         </div>
 
-        {/* --- ADDED noValidate HERE --- */}
         <form onSubmit={handleSignup} noValidate className="px-8 py-8 space-y-8">
-          
-          {/* Section 1: Basic Info */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-blue-600" /> General Information
@@ -158,8 +141,6 @@ export default function Signup() {
               />
               
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* --- CUSTOM PASSWORD FIELD WITH INLINE ERRORS --- */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                   <div className="relative rounded-md shadow-sm">
@@ -202,7 +183,6 @@ export default function Signup() {
             </div>
           </div>
 
-          {/* Section 2: Interswitch Configuration */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-600" /> Interswitch Configuration
@@ -229,9 +209,6 @@ export default function Signup() {
                 error={errors.interswitchPayItemId}
               />
             </div>
-            <p className="mt-3 text-xs text-gray-500 italic">
-              Use the "General Integration" test keys from the Interswitch docs for sandbox testing.
-            </p>
           </div>
 
           <div className="pt-2 flex flex-col items-center">
@@ -245,8 +222,18 @@ export default function Signup() {
             <p className="mt-4 text-sm text-gray-600">
               Already registered? <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">Sign in here</Link>
             </p>
-          </div>
 
+            <div className="mt-6 pt-6 border-t border-gray-100 w-full text-center">
+              <p className="text-xs text-slate-400 mb-3 uppercase tracking-wider font-semibold">Are you a parent?</p>
+              <Link 
+                to="/chat" 
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Talk to AI Assistant
+              </Link>
+            </div>
+          </div>
         </form>
       </div>
     </div>

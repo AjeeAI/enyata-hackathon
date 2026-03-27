@@ -7,7 +7,7 @@ pydantic-settings>=2.5.0
 python-dotenv
 langchain>=0.2.0
 langchain-core
-langchain-community  # <-- CRITICAL ADDITION
+langchain-community
 langchain-openai
 langchain_google_genai
 langchain-groq
@@ -18,3 +18,4 @@ PyJWT
 bcrypt
 requests
 python-multipart
+google-generativeai
